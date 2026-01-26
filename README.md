@@ -238,6 +238,25 @@ practiceLogs/{logId}
 - `/student/plan/:id` - Plan detail + sessions list
 - `/student/plan/:id/session/:id/player` - Session player (workout mode)
 
+## Saving to GitHub
+
+The project is already a **git repo** with an initial commit. To back it up on GitHub:
+
+1. **Create a new repository** on [GitHub](https://github.com/new):
+   - Name it e.g. `music-workout-mvp`
+   - Do **not** add a README, .gitignore, or license (they already exist)
+
+2. **Add the remote and push** (replace `YOUR_USERNAME` with your GitHub username):
+
+   ```bash
+   cd "/Users/Joe/ChopZ Project/MVP ChopZ"
+   git remote add origin https://github.com/YOUR_USERNAME/music-workout-mvp.git
+   git branch -M main
+   git push -u origin main
+   ```
+
+3. If GitHub asks you to log in, use a **Personal Access Token** as the password (Settings → Developer settings → Personal access tokens).
+
 ## License
 
 MIT
