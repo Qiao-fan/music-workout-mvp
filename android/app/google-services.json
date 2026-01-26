@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "20002844541",
+    "project_id": "chopz-app",
+    "storage_bucket": "chopz-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:20002844541:android:9c8933fa68ca49149fe614",
+        "android_client_info": {
+          "package_name": "com.chopz.music_workout"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLYiZAhVVJ_mHuV5lYiNJFFBiSqLfXT-A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

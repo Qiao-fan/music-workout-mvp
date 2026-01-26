@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+    }
+    
+    // Plans collection
+    match /plans/{planId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && resource.data.teacherId == request.auth.uid;
+      
+      // Sessions subcollection
+      match /sessions/{sessionId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+        
+        // Exercises subcollection
+        match /exercises/{exerciseId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+      }
+    }
+    
+    // Assignments collection - allow read for any authenticated user (query filters by userId)
+    match /assignments/{assignmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+    
+    // Practice logs collection - allow read for any authenticated user (query filters by userId)
+    match /practiceLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
+  }
+}
