@@ -130,6 +130,11 @@ class _SessionEditorScreenState extends ConsumerState<SessionEditorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/teacher/plan/${widget.planId}/edit'),
+          tooltip: 'Back to Plan',
+        ),
         title: Text(isEditing ? 'Edit Session' : 'New Session'),
         actions: [
           TextButton.icon(

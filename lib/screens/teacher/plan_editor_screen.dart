@@ -148,6 +148,11 @@ class _PlanEditorScreenState extends ConsumerState<PlanEditorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/teacher/home'),
+          tooltip: 'Back to My Plans',
+        ),
         title: Text(isEditing ? 'Edit Plan' : 'New Plan'),
         actions: [
           TextButton.icon(

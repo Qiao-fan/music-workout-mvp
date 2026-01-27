@@ -245,7 +245,7 @@ class _SessionPlayerScreenState extends ConsumerState<SessionPlayerScreen> {
                       if (exercise.targetSeconds != null)
                         Chip(
                           avatar: const Icon(Icons.timer, size: 18),
-                          label: Text('${exercise.targetSeconds}s target'),
+                          label: Text('Suggested: ${exercise.targetSeconds}s'),
                         ),
                     ],
                   ),

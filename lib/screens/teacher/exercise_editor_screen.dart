@@ -26,6 +26,7 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
   final _titleController = TextEditingController();
   final _instructionsController = TextEditingController();
   final _bpmController = TextEditingController();
+  final _secondsController = TextEditingController();
   final _urlController = TextEditingController();
   List<String> _attachmentUrls = [];
   bool _isLoading = false;
@@ -40,6 +41,7 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
     _titleController.dispose();
     _instructionsController.dispose();
     _bpmController.dispose();
+    _secondsController.dispose();
     _urlController.dispose();
     super.dispose();
   }
@@ -49,6 +51,7 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
     _titleController.text = exercise.title;
     _instructionsController.text = exercise.instructions;
     _bpmController.text = exercise.targetBpm?.toString() ?? '';
+    _secondsController.text = exercise.targetSeconds?.toString() ?? '';
     _attachmentUrls = List.from(exercise.attachmentUrls);
     _currentOrderIndex = exercise.orderIndex;
     _isInitialized = true;
@@ -99,7 +102,7 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
         instructions: _instructionsController.text.trim(),
         orderIndex: orderIndex,
         targetBpm: int.tryParse(_bpmController.text),
-        targetSeconds: null, // Removed
+        targetSeconds: int.tryParse(_secondsController.text),
         attachmentUrls: _attachmentUrls,
       );
 
@@ -169,6 +172,11 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/teacher/plan/${widget.planId}/session/${widget.sessionId}'),
+          tooltip: 'Back to Session',
+        ),
         title: Text(isEditing ? 'Edit Exercise' : 'New Exercise'),
         actions: [
           TextButton.icon(
@@ -253,6 +261,16 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
                 labelText: 'Target BPM (optional)',
                 hintText: '80',
                 suffixText: 'BPM',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _secondsController,
+              decoration: const InputDecoration(
+                labelText: 'Suggested duration (optional)',
+                hintText: 'e.g. 120',
+                suffixText: 'seconds',
               ),
               keyboardType: TextInputType.number,
             ),
