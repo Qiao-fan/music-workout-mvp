@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/models.dart';
@@ -34,6 +34,7 @@ class _SessionPlayerScreenState extends ConsumerState<SessionPlayerScreen> {
   Timer? _metronomeTimer;
   bool _metronomeTickOn = false;
   bool _metronomeSoundOn = true;
+  final AudioPlayer _metronomePlayer = AudioPlayer();
 
   // Countdown state
   bool _isCountdown = false;
@@ -43,6 +44,7 @@ class _SessionPlayerScreenState extends ConsumerState<SessionPlayerScreen> {
   void dispose() {
     _timer?.cancel();
     _metronomeTimer?.cancel();
+    _metronomePlayer.dispose();
     super.dispose();
   }
 
@@ -149,8 +151,9 @@ class _SessionPlayerScreenState extends ConsumerState<SessionPlayerScreen> {
       setState(() {
         _metronomeTickOn = !_metronomeTickOn;
       });
+      // Play click sound
       if (_metronomeSoundOn) {
-        SystemSound.play(SystemSoundType.click);
+        _metronomePlayer.play(AssetSource('sounds/click.wav'));
       }
     });
   }
@@ -314,12 +317,86 @@ class _SessionPlayerScreenState extends ConsumerState<SessionPlayerScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Exercise title
-                Text(
-                  exercise.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
+                // Exercise title with metronome controls
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        exercise.title,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
+                    ),
+                    // Metronome controls
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: _metronomeOn,
+                          onChanged: (value) {
+                            setState(() {
+                              _metronomeOn = value;
+                            });
+                            _toggleMetronome();
+                          },
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.circle,
+                          size: 12,
+                          color: _metronomeOn
+                              ? (_metronomeTickOn
+                                  ? Colors.green
+                                  : Colors.green.withOpacity(0.3))
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .outline
+                                  .withOpacity(0.5),
+                        ),
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 70,
+                          child: TextFormField(
+                            initialValue: _currentBpm.toString(),
+                            decoration: const InputDecoration(
+                              labelText: 'BPM',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              final bpm = int.tryParse(value);
+                              if (bpm == null || bpm <= 0) return;
+                              setState(() {
+                                _currentBpm = bpm;
+                              });
+                              if (_metronomeOn) {
+                                _startMetronome();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: Icon(
+                            _metronomeSoundOn
+                                ? Icons.volume_up
+                                : Icons.volume_off,
+                            size: 20,
+                          ),
+                          tooltip:
+                              _metronomeSoundOn ? 'Mute metronome' : 'Unmute metronome',
+                          onPressed: () {
+                            setState(() {
+                              _metronomeSoundOn = !_metronomeSoundOn;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
 
@@ -379,73 +456,6 @@ class _SessionPlayerScreenState extends ConsumerState<SessionPlayerScreen> {
                             IconButton.outlined(
                               onPressed: _resetTimer,
                               icon: const Icon(Icons.refresh),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Metronome controls
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Switch(
-                              value: _metronomeOn,
-                              onChanged: (value) {
-                                setState(() {
-                                  _metronomeOn = value;
-                                });
-                                _toggleMetronome();
-                              },
-                            ),
-                            const Text('Metronome'),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.circle,
-                              size: 12,
-                              color: _metronomeOn
-                                  ? (_metronomeTickOn
-                                      ? Colors.green
-                                      : Colors.green.withOpacity(0.3))
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .outline
-                                      .withOpacity(0.5),
-                            ),
-                            const SizedBox(width: 16),
-                            SizedBox(
-                              width: 90,
-                              child: TextFormField(
-                                initialValue: _currentBpm.toString(),
-                                decoration: const InputDecoration(
-                                  labelText: 'BPM',
-                                ),
-                                keyboardType: TextInputType.number,
-                                onChanged: (value) {
-                                  final bpm = int.tryParse(value);
-                                  if (bpm == null || bpm <= 0) return;
-                                  setState(() {
-                                    _currentBpm = bpm;
-                                  });
-                                  if (_metronomeOn) {
-                                    _startMetronome();
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: Icon(
-                                _metronomeSoundOn
-                                    ? Icons.volume_up
-                                    : Icons.volume_off,
-                              ),
-                              tooltip:
-                                  _metronomeSoundOn ? 'Mute metronome' : 'Unmute metronome',
-                              onPressed: () {
-                                setState(() {
-                                  _metronomeSoundOn = !_metronomeSoundOn;
-                                });
-                              },
                             ),
                           ],
                         ),
