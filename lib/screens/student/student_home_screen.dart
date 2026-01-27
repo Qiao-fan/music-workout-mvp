@@ -150,7 +150,10 @@ class StudentHomeScreen extends ConsumerWidget {
                 itemCount: assignments.length,
                 itemBuilder: (context, index) {
                   final assignment = assignments[index];
-                  return _AssignedPlanCard(assignment: assignment);
+                  return _AssignedPlanCard(
+                    assignment: assignment,
+                    studentId: userId,
+                  );
                 },
               );
             },
@@ -166,7 +169,12 @@ class StudentHomeScreen extends ConsumerWidget {
 class _AssignedPlanCard extends ConsumerWidget {
   final Assignment assignment;
 
-  const _AssignedPlanCard({required this.assignment});
+  final String studentId;
+
+  const _AssignedPlanCard({
+    required this.assignment,
+    required this.studentId,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -175,6 +183,46 @@ class _AssignedPlanCard extends ConsumerWidget {
     return planAsync.when(
       data: (plan) {
         if (plan == null) return const SizedBox.shrink();
+        final sessionsAsync = ref.watch(sessionsProvider(plan.id));
+        final logsAsync = ref.watch(studentPracticeLogsProvider(studentId));
+
+        final sessions = sessionsAsync.valueOrNull;
+        final logs = logsAsync.valueOrNull;
+
+        Widget progressSection;
+        if (sessions == null || logs == null) {
+          progressSection = const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: LinearProgressIndicator(),
+          );
+        } else {
+          final sessionIds = sessions.map((s) => s.id).toSet();
+          final completedSessionIds = logs
+              .where((log) =>
+                  log.planId == plan.id && sessionIds.contains(log.sessionId))
+              .map((log) => log.sessionId)
+              .toSet();
+          final completed = completedSessionIds.length;
+          final total = sessions.length;
+
+          progressSection = Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LinearProgressIndicator(
+                  value: total == 0 ? 0 : completed / total,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$completed of $total sessions completed',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          );
+        }
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: InkWell(
@@ -244,6 +292,7 @@ class _AssignedPlanCard extends ConsumerWidget {
                           label: plan.difficulty),
                     ],
                   ),
+                progressSection,
                 ],
               ),
             ),
