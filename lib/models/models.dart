@@ -276,3 +276,76 @@ class PracticeLog {
         'durationSeconds': durationSeconds,
       };
 }
+
+// ============================================================================
+// Template Exercise Model
+// ============================================================================
+class TemplateExercise {
+  final String id;
+  final String title;
+  final String description;
+  final TemplateVariant variantA;
+  final TemplateVariant variantB;
+  final TemplateVariant variantC;
+  final DateTime createdAt;
+
+  TemplateExercise({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.variantA,
+    required this.variantB,
+    required this.variantC,
+    required this.createdAt,
+  });
+
+  factory TemplateExercise.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return TemplateExercise(
+      id: doc.id,
+      title: data['title'] ?? '',
+      description: data['description'] ?? '',
+      variantA: TemplateVariant.fromMap(data['variantA'] ?? {}),
+      variantB: TemplateVariant.fromMap(data['variantB'] ?? {}),
+      variantC: TemplateVariant.fromMap(data['variantC'] ?? {}),
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+        'title': title,
+        'description': description,
+        'variantA': variantA.toMap(),
+        'variantB': variantB.toMap(),
+        'variantC': variantC.toMap(),
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+class TemplateVariant {
+  final String instructions;
+  final int? targetBpm;
+  final int? targetSeconds;
+
+  TemplateVariant({
+    required this.instructions,
+    this.targetBpm,
+    this.targetSeconds,
+  });
+
+  factory TemplateVariant.fromMap(Map<String, dynamic> map) {
+    return TemplateVariant(
+      instructions: map['instructions'] ?? '',
+      targetBpm: map['targetBpm'],
+      targetSeconds: map['targetSeconds'],
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'instructions': instructions,
+        'targetBpm': targetBpm,
+        'targetSeconds': targetSeconds,
+      };
+}

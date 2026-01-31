@@ -14,6 +14,7 @@ dependencies:
   firebase_core: ^3.8.1
   firebase_auth: ^5.3.4
   cloud_firestore: ^5.6.0
+  firebase_storage: ^12.3.4
 
   # State Management
   flutter_riverpod: ^2.6.1
@@ -25,6 +26,18 @@ dependencies:
   uuid: ^4.5.1
   intl: ^0.19.0
   audioplayers: ^6.1.0
+  file_picker: ^8.1.4
+  url_launcher: ^6.3.1
+
+  # Media
+  pdfx: ^2.9.2
+  internet_file: ^1.3.0
+  flutter_image_compress: ^2.4.0
+  pointer_interceptor: ^0.10.1+2
+  # Video: media_kit supports MOV on mobile/desktop (libmpv); web still uses HTML5
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
 
 dev_dependencies:
   flutter_test:

@@ -112,3 +112,10 @@ final studentProgressProvider =
     FutureProvider.family<List<PracticeLog>, String>((ref, studentId) {
   return ref.watch(firebaseServiceProvider).getStudentPracticeLogs(studentId);
 });
+
+// ============================================================================
+// Template Exercise Providers
+// ============================================================================
+final templateExercisesProvider = StreamProvider<List<TemplateExercise>>((ref) {
+  return ref.watch(firebaseServiceProvider).templateExercisesStream();
+});

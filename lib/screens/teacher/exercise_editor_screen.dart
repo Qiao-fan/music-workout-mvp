@@ -1,6 +1,12 @@
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
+import '../../core/upload_config.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
 
@@ -27,14 +33,28 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
   final _instructionsController = TextEditingController();
   final _bpmController = TextEditingController();
   final _secondsController = TextEditingController();
-  final _urlController = TextEditingController();
   List<String> _attachmentUrls = [];
   bool _isLoading = false;
+  bool _isSaving = false;
   bool _isSaved = false;
   bool _isInitialized = false;
   int _currentOrderIndex = 0;
+  late final String _tempExerciseId; // For file uploads before exercise is created
 
   bool get isEditing => widget.exerciseId != null;
+  
+  String get _exerciseIdForUpload => widget.exerciseId ?? _tempExerciseId;
+  
+  @override
+  void initState() {
+    super.initState();
+    // Generate UUID for new exercises (for file uploads)
+    if (!isEditing) {
+      _tempExerciseId = const Uuid().v4();
+    } else {
+      _tempExerciseId = '';
+    }
+  }
 
   @override
   void dispose() {
@@ -42,7 +62,6 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
     _instructionsController.dispose();
     _bpmController.dispose();
     _secondsController.dispose();
-    _urlController.dispose();
     super.dispose();
   }
 
@@ -51,26 +70,158 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
     _titleController.text = exercise.title;
     _instructionsController.text = exercise.instructions;
     _bpmController.text = exercise.targetBpm?.toString() ?? '';
-    _secondsController.text = exercise.targetSeconds?.toString() ?? '';
+    // Store minutes in UI (convert from seconds)
+    _secondsController.text = exercise.targetSeconds != null
+        ? (exercise.targetSeconds! / 60).toString().replaceAll(RegExp(r'\.0$'), '')
+        : '';
     _attachmentUrls = List.from(exercise.attachmentUrls);
     _currentOrderIndex = exercise.orderIndex;
     _isInitialized = true;
   }
 
-  void _addUrl() {
-    final url = _urlController.text.trim();
-    if (url.isNotEmpty) {
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'mp4', 'mov', 'mp3', 'wav', 'm4a', 'pdf'],
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final fileName = file.name;
+      final ext = fileName.split('.').last.toLowerCase();
+
+      // Get file size
+      int fileSize = file.size;
+      if (fileSize == 0 && file.bytes != null) {
+        fileSize = file.bytes!.length;
+      }
+
+      // Check size limit
+      final maxSize = UploadConfig.getMaxSizeForExtension(ext);
+      if (fileSize > maxSize) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'File too large. Max ${UploadConfig.formatBytes(maxSize)} for ${ext.toUpperCase()} files.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() => _isSaving = true);
+
+      final firebaseService = ref.read(firebaseServiceProvider);
+      final exerciseId = _exerciseIdForUpload;
+
+      Uint8List? compressedData;
+      if (ext == 'jpg' || ext == 'jpeg' || ext == 'png') {
+        compressedData = await _compressImage(file, ext);
+      }
+
+      final downloadUrl = await firebaseService.uploadExerciseFile(
+        planId: widget.planId,
+        sessionId: widget.sessionId,
+        exerciseId: exerciseId,
+        platformFile: file,
+        fileName: fileName,
+        data: compressedData,
+      );
+
+      if (mounted) {
+        setState(() {
+          _attachmentUrls.add(downloadUrl);
+          _isSaving = false;
+        });
+        final saved = compressedData != null
+            ? ' (compressed from ${UploadConfig.formatBytes(fileSize)})'
+            : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ext == 'mov'
+                  ? 'File uploaded$saved. Tip: MP4 plays more reliably in browsers than MOV.'
+                  : 'File uploaded$saved',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading file: $e')),
+        );
+      }
+    }
+  }
+
+  Future<Uint8List?> _compressImage(PlatformFile file, String ext) async {
+    try {
+      if (kIsWeb) {
+        if (file.bytes == null) return null;
+        final result = await FlutterImageCompress.compressWithList(
+          file.bytes!,
+          minWidth: UploadConfig.imageMaxWidth,
+          minHeight: UploadConfig.imageMaxHeight,
+          quality: UploadConfig.imageCompressQuality,
+          format: ext == 'png' ? CompressFormat.png : CompressFormat.jpeg,
+        );
+        return result.isEmpty ? null : Uint8List.fromList(result);
+      } else {
+        if (file.path == null) return null;
+        final result = await FlutterImageCompress.compressWithFile(
+          file.path!,
+          minWidth: UploadConfig.imageMaxWidth,
+          minHeight: UploadConfig.imageMaxHeight,
+          quality: UploadConfig.imageCompressQuality,
+          format: ext == 'png' ? CompressFormat.png : CompressFormat.jpeg,
+        );
+        return result;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _removeFile(int index) async {
+    final url = _attachmentUrls[index];
+    try {
+      final firebaseService = ref.read(firebaseServiceProvider);
+      await firebaseService.deleteExerciseFile(url);
       setState(() {
-        _attachmentUrls.add(url);
-        _urlController.clear();
+        _attachmentUrls.removeAt(index);
+      });
+    } catch (e) {
+      // Even if delete fails, remove from list
+      setState(() {
+        _attachmentUrls.removeAt(index);
       });
     }
   }
 
-  void _removeUrl(int index) {
-    setState(() {
-      _attachmentUrls.removeAt(index);
-    });
+  IconData _getFileIcon(String url) {
+    final lower = url.toLowerCase();
+    if (lower.contains('.jpg') || lower.contains('.jpeg') || 
+        lower.contains('.png') || lower.contains('.gif')) {
+      return Icons.image;
+    } else if (lower.contains('.mp4') || lower.contains('.mov') || 
+               lower.contains('.avi')) {
+      return Icons.videocam;
+    } else if (lower.contains('.mp3') || lower.contains('.wav') || 
+               lower.contains('.m4a')) {
+      return Icons.audiotrack;
+    } else if (lower.contains('.pdf')) {
+      return Icons.picture_as_pdf;
+    }
+    return Icons.attach_file;
   }
 
   Future<void> _saveExercise() async {
@@ -96,13 +247,18 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
       }
 
       final exercise = Exercise(
-        id: widget.exerciseId ?? '',
+        id: widget.exerciseId ?? _tempExerciseId,
         sessionId: widget.sessionId,
         title: _titleController.text.trim(),
         instructions: _instructionsController.text.trim(),
         orderIndex: orderIndex,
         targetBpm: int.tryParse(_bpmController.text),
-        targetSeconds: int.tryParse(_secondsController.text),
+        targetSeconds: () {
+          final minutes = double.tryParse(_secondsController.text);
+          return minutes != null && minutes > 0
+              ? (minutes * 60).round()
+              : null;
+        }(),
         attachmentUrls: _attachmentUrls,
       );
 
@@ -269,35 +425,27 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
               controller: _secondsController,
               decoration: const InputDecoration(
                 labelText: 'Suggested duration (optional)',
-                hintText: 'e.g. 120',
-                suffixText: 'seconds',
+                hintText: 'e.g. 2',
+                suffixText: 'min',
               ),
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: 24),
             Text(
-              'Attachment URLs',
+              'Attachments',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _urlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Add URL',
-                      hintText: 'https://...',
-                    ),
-                    onFieldSubmitted: (_) => _addUrl(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _addUrl,
-                  icon: const Icon(Icons.add),
-                ),
-              ],
+            OutlinedButton.icon(
+              onPressed: _isSaving ? null : _pickFile,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add),
+              label: Text(_isSaving ? 'Uploading...' : 'Add File (Image/Video/Audio/PDF)'),
             ),
             const SizedBox(height: 8),
             if (_attachmentUrls.isNotEmpty) ...[
@@ -306,19 +454,20 @@ class _ExerciseEditorScreenState extends ConsumerState<ExerciseEditorScreen> {
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _attachmentUrls.length,
                 itemBuilder: (context, index) {
+                  final url = _attachmentUrls[index];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 4),
                     child: ListTile(
                       dense: true,
-                      leading: const Icon(Icons.link),
+                      leading: Icon(_getFileIcon(url)),
                       title: Text(
-                        _attachmentUrls[index],
+                        url.split('/').last,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _removeUrl(index),
+                        onPressed: () => _removeFile(index),
                       ),
                     ),
                   );

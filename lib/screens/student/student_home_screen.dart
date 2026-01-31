@@ -168,13 +168,94 @@ class StudentHomeScreen extends ConsumerWidget {
 
 class _AssignedPlanCard extends ConsumerWidget {
   final Assignment assignment;
-
   final String studentId;
 
   const _AssignedPlanCard({
     required this.assignment,
     required this.studentId,
   });
+
+  void _showRemoveConfirmation(
+    BuildContext context,
+    WidgetRef ref,
+    Assignment assignment,
+    Plan plan,
+    List<Session>? sessions,
+    List<PracticeLog>? logs,
+  ) {
+    // Check if plan is finished (all sessions completed)
+    bool isFinished = false;
+    if (sessions != null && logs != null) {
+      final sessionIds = sessions.map((s) => s.id).toSet();
+      final completedSessionIds = logs
+          .where((log) =>
+              log.planId == plan.id && sessionIds.contains(log.sessionId))
+          .map((log) => log.sessionId)
+          .toSet();
+      isFinished = completedSessionIds.length == sessions.length;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isFinished ? 'Remove Plan?' : 'Remove Unfinished Plan?'),
+        content: Text(
+          isFinished
+              ? 'This plan is completed. Remove it from your list?'
+              : 'This plan is not finished yet. Are you sure you want to remove it? Your progress will be kept, but you\'ll need to ask your teacher to reassign it to see it again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _removePlan(context, ref, assignment.id);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: isFinished
+                  ? null
+                  : Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removePlan(
+    BuildContext context,
+    WidgetRef ref,
+    String assignmentId,
+  ) async {
+    try {
+      final firebaseService = ref.read(firebaseServiceProvider);
+      await firebaseService.deleteAssignment(assignmentId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Plan removed'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -275,6 +356,22 @@ class _AssignedPlanCard extends ConsumerWidget {
                             ),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        iconSize: 20,
+                        color: Theme.of(context).colorScheme.outline,
+                        tooltip: 'Remove plan',
+                        onPressed: () {
+                          _showRemoveConfirmation(
+                            context,
+                            ref,
+                            assignment,
+                            plan,
+                            sessions,
+                            logs,
+                          );
+                        },
                       ),
                       Icon(
                         Icons.chevron_right,

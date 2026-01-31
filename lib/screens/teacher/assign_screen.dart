@@ -78,15 +78,56 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
-
     try {
       final firebaseService = ref.read(firebaseServiceProvider);
       final teacherId = firebaseService.currentUser?.uid;
 
       if (teacherId == null) throw Exception('Not logged in');
 
-      // Create assignment
+      // Check if assignment already exists
+      final existingAssignment = await firebaseService.getAssignmentByStudentAndPlan(
+        _selectedStudent!.id,
+        _selectedPlanId!,
+      );
+
+      // If assignment exists, show confirmation dialog
+      if (existingAssignment != null) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Update Assignment?'),
+            content: Text(
+              '${_selectedStudent!.displayName} already has this plan assigned. Do you want to update it?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Update'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true) {
+          // User cancelled
+          return;
+        }
+      }
+
+      setState(() => _isLoading = true);
+
+      final wasUpdate = existingAssignment != null;
+
+      if (existingAssignment != null) {
+        // Delete old assignment and create new one (updates the assignment)
+        await firebaseService.deleteAssignment(existingAssignment.id);
+      }
+
+      // Create new assignment
       final assignment = Assignment(
         id: '',
         teacherId: teacherId,
@@ -106,12 +147,14 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Plan assigned successfully!'),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(wasUpdate
+                    ? 'Plan assignment updated!'
+                    : 'Plan assigned successfully!'),
               ],
             ),
             backgroundColor: Colors.green,

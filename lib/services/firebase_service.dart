@@ -1,5 +1,11 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
 import '../models/models.dart';
 
 class FirebaseService {
@@ -199,14 +205,22 @@ class FirebaseService {
   // ============================================================================
   Future<String> createExercise(
       String planId, String sessionId, Exercise exercise) async {
-    final doc = await _firestore
+    final exerciseRef = _firestore
         .collection('plans')
         .doc(planId)
         .collection('sessions')
         .doc(sessionId)
-        .collection('exercises')
-        .add(exercise.toFirestore());
-    return doc.id;
+        .collection('exercises');
+    
+    // If exercise has an ID, use it (for file uploads before creation)
+    if (exercise.id.isNotEmpty) {
+      await exerciseRef.doc(exercise.id).set(exercise.toFirestore());
+      return exercise.id;
+    } else {
+      // Otherwise, let Firestore generate ID
+      final doc = await exerciseRef.add(exercise.toFirestore());
+      return doc.id;
+    }
   }
 
   Future<void> updateExercise(
@@ -290,6 +304,24 @@ class FirebaseService {
             snapshot.docs.map((doc) => Assignment.fromFirestore(doc)).toList());
   }
 
+  // Get existing assignment for student + plan combination
+  Future<Assignment?> getAssignmentByStudentAndPlan(
+      String studentId, String planId) async {
+    final query = await _firestore
+        .collection('assignments')
+        .where('studentId', isEqualTo: studentId)
+        .where('planId', isEqualTo: planId)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) return null;
+    return Assignment.fromFirestore(query.docs.first);
+  }
+
+  // Delete assignment
+  Future<void> deleteAssignment(String assignmentId) async {
+    await _firestore.collection('assignments').doc(assignmentId).delete();
+  }
+
   // ============================================================================
   // Practice Logs
   // ============================================================================
@@ -329,6 +361,129 @@ class FirebaseService {
         .get();
     return snapshot.docs
         .map((doc) => PracticeLog.fromFirestore(doc))
+        .toList();
+  }
+
+  // ============================================================================
+  // File Storage
+  // ============================================================================
+  Future<String> uploadExerciseFile({
+    required String planId,
+    required String sessionId,
+    required String exerciseId,
+    required PlatformFile platformFile,
+    required String fileName,
+    Uint8List? data,
+  }) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final storagePath =
+        'exercises/$planId/$sessionId/$exerciseId/${timestamp}_$fileName';
+
+    final storage = FirebaseStorage.instanceFor(
+      app: Firebase.app(),
+    );
+    final ref = storage.ref().child(storagePath);
+
+    final ext = fileName.split('.').last.toLowerCase();
+    String? contentType;
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        contentType = 'image/jpeg';
+        break;
+      case 'png':
+        contentType = 'image/png';
+        break;
+      case 'gif':
+        contentType = 'image/gif';
+        break;
+      case 'mp4':
+        contentType = 'video/mp4';
+        break;
+      case 'mov':
+        contentType = 'video/quicktime';
+        break;
+      case 'mp3':
+        contentType = 'audio/mpeg';
+        break;
+      case 'wav':
+        contentType = 'audio/wav';
+        break;
+      case 'm4a':
+        contentType = 'audio/mp4';
+        break;
+      case 'pdf':
+        contentType = 'application/pdf';
+        break;
+    }
+
+    if (data != null) {
+      await ref.putData(
+        data,
+        SettableMetadata(contentType: contentType),
+      );
+    } else if (kIsWeb) {
+      if (platformFile.bytes == null) {
+        throw Exception('File bytes are null');
+      }
+      await ref.putData(
+        platformFile.bytes!,
+        SettableMetadata(contentType: contentType),
+      );
+    } else {
+      if (platformFile.path == null) {
+        throw Exception('File path is null');
+      }
+      final file = File(platformFile.path!);
+      await ref.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
+      );
+    }
+
+    return await ref.getDownloadURL();
+  }
+
+  Future<void> deleteExerciseFile(String fileUrl) async {
+    try {
+      final storage = FirebaseStorage.instanceFor(app: Firebase.app());
+      final ref = storage.refFromURL(fileUrl);
+      await ref.delete();
+    } catch (e) {
+      // File might not exist, ignore error
+    }
+  }
+
+  // ============================================================================
+  // Template Exercises
+  // ============================================================================
+  Future<String> createTemplateExercise(TemplateExercise template) async {
+    final doc = await _firestore
+        .collection('templateExercises')
+        .add(template.toFirestore());
+    return doc.id;
+  }
+
+  Stream<List<TemplateExercise>> templateExercisesStream() {
+    return _firestore
+        .collection('templateExercises')
+        .orderBy('title')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TemplateExercise.fromFirestore(doc))
+            .toList());
+  }
+
+  Future<List<TemplateExercise>> getTemplateExercises() async {
+    final snapshot = await _firestore
+        .collection('templateExercises')
+        .orderBy('title')
+        .get();
+    return snapshot.docs
+        .map((doc) => TemplateExercise.fromFirestore(doc))
         .toList();
   }
 }

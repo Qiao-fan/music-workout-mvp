@@ -49,5 +49,11 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
     }
+    
+    // Template exercises collection - allow read for authenticated users, write for teachers
+    match /templateExercises/{templateId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Teachers can create templates
+    }
   }
 }

@@ -208,6 +208,11 @@ class _SessionEditorScreenState extends ConsumerState<SessionEditorScreen> {
             ),
             if (isEditing) ...[
               const Divider(height: 32),
+              _TemplateExercisesSection(
+                planId: widget.planId,
+                sessionId: widget.sessionId!,
+              ),
+              const SizedBox(height: 24),
               _ExercisesSection(
                 planId: widget.planId,
                 sessionId: widget.sessionId!,
@@ -216,6 +221,173 @@ class _SessionEditorScreenState extends ConsumerState<SessionEditorScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TemplateExercisesSection extends ConsumerWidget {
+  final String planId;
+  final String sessionId;
+
+  const _TemplateExercisesSection({
+    required this.planId,
+    required this.sessionId,
+  });
+
+  Future<void> _addFromTemplate(
+    BuildContext context,
+    WidgetRef ref,
+    TemplateExercise template,
+    TemplateVariant variant,
+    String variantLabel,
+  ) async {
+    try {
+      final firebaseService = ref.read(firebaseServiceProvider);
+      
+      // Get next order index
+      final existingExercises = await firebaseService.getExercisesCount(
+        planId,
+        sessionId,
+      );
+
+      // Create exercise from template variant
+      final exercise = Exercise(
+        id: '',
+        sessionId: sessionId,
+        title: '${template.title} - $variantLabel',
+        instructions: variant.instructions,
+        orderIndex: existingExercises,
+        targetBpm: variant.targetBpm,
+        targetSeconds: variant.targetSeconds,
+        attachmentUrls: [],
+      );
+
+      await firebaseService.createExercise(planId, sessionId, exercise);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added ${template.title} ($variantLabel)'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templatesAsync = ref.watch(templateExercisesProvider);
+
+    return templatesAsync.when(
+      data: (templates) {
+        if (templates.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Template Exercises',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Quickly add exercises from templates',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: templates.length,
+              itemBuilder: (context, index) {
+                final template = templates[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          template.title,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        if (template.description.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            template.description,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => _addFromTemplate(
+                                  context,
+                                  ref,
+                                  template,
+                                  template.variantA,
+                                  'A',
+                                ),
+                                child: const Text('Variant A'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => _addFromTemplate(
+                                  context,
+                                  ref,
+                                  template,
+                                  template.variantB,
+                                  'B',
+                                ),
+                                child: const Text('Variant B'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => _addFromTemplate(
+                                  context,
+                                  ref,
+                                  template,
+                                  template.variantC,
+                                  'C',
+                                ),
+                                child: const Text('Variant C'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }
