@@ -235,6 +235,18 @@ class FirebaseService {
         .update(exercise.toFirestore());
   }
 
+  Future<void> deleteExercise(
+      String planId, String sessionId, String exerciseId) async {
+    await _firestore
+        .collection('plans')
+        .doc(planId)
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('exercises')
+        .doc(exerciseId)
+        .delete();
+  }
+
   Stream<List<Exercise>> exercisesStream(String planId, String sessionId) {
     return _firestore
         .collection('plans')
@@ -447,6 +459,76 @@ class FirebaseService {
     return await ref.getDownloadURL();
   }
 
+  Future<String> uploadTemplateFile({
+    required String templateId,
+    required PlatformFile platformFile,
+    required String fileName,
+    Uint8List? data,
+  }) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final storagePath = 'templates/$templateId/${timestamp}_$fileName';
+
+    final storage = FirebaseStorage.instanceFor(app: Firebase.app());
+    final ref = storage.ref().child(storagePath);
+
+    final ext = fileName.split('.').last.toLowerCase();
+    String? contentType;
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        contentType = 'image/jpeg';
+        break;
+      case 'png':
+        contentType = 'image/png';
+        break;
+      case 'gif':
+        contentType = 'image/gif';
+        break;
+      case 'mp4':
+        contentType = 'video/mp4';
+        break;
+      case 'mov':
+        contentType = 'video/quicktime';
+        break;
+      case 'mp3':
+        contentType = 'audio/mpeg';
+        break;
+      case 'wav':
+        contentType = 'audio/wav';
+        break;
+      case 'm4a':
+        contentType = 'audio/mp4';
+        break;
+      case 'pdf':
+        contentType = 'application/pdf';
+        break;
+    }
+
+    if (data != null) {
+      await ref.putData(
+        data,
+        SettableMetadata(contentType: contentType),
+      );
+    } else if (kIsWeb) {
+      if (platformFile.bytes == null) throw Exception('File bytes are null');
+      await ref.putData(
+        platformFile.bytes!,
+        SettableMetadata(contentType: contentType),
+      );
+    } else {
+      if (platformFile.path == null) throw Exception('File path is null');
+      final file = File(platformFile.path!);
+      await ref.putFile(
+        file,
+        SettableMetadata(contentType: contentType),
+      );
+    }
+    return await ref.getDownloadURL();
+  }
+
   Future<void> deleteExerciseFile(String fileUrl) async {
     try {
       final storage = FirebaseStorage.instanceFor(app: Firebase.app());
@@ -467,9 +549,10 @@ class FirebaseService {
     return doc.id;
   }
 
-  Stream<List<TemplateExercise>> templateExercisesStream() {
+  Stream<List<TemplateExercise>> templateExercisesStream(String instrument) {
     return _firestore
         .collection('templateExercises')
+        .where('instrument', isEqualTo: instrument)
         .orderBy('title')
         .snapshots()
         .map((snapshot) => snapshot.docs
@@ -477,13 +560,30 @@ class FirebaseService {
             .toList());
   }
 
-  Future<List<TemplateExercise>> getTemplateExercises() async {
+  Future<List<TemplateExercise>> getTemplateExercises(String instrument) async {
     final snapshot = await _firestore
         .collection('templateExercises')
+        .where('instrument', isEqualTo: instrument)
         .orderBy('title')
         .get();
     return snapshot.docs
         .map((doc) => TemplateExercise.fromFirestore(doc))
         .toList();
+  }
+
+  Future<TemplateExercise?> getTemplateExercise(String templateId) async {
+    final doc = await _firestore
+        .collection('templateExercises')
+        .doc(templateId)
+        .get();
+    if (!doc.exists) return null;
+    return TemplateExercise.fromFirestore(doc);
+  }
+
+  Future<void> updateTemplateExercise(TemplateExercise template) async {
+    await _firestore
+        .collection('templateExercises')
+        .doc(template.id)
+        .update(template.toFirestore());
   }
 }

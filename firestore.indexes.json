@@ -39,6 +39,14 @@
         { "fieldPath": "teacherId", "order": "ASCENDING" },
         { "fieldPath": "startedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "templateExercises",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "instrument", "order": "ASCENDING" },
+        { "fieldPath": "title", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

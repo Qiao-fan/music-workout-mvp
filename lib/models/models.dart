@@ -284,6 +284,8 @@ class TemplateExercise {
   final String id;
   final String title;
   final String description;
+  final String instrument; // Plan instrument this template is for
+  final String mediaUrl; // Single media URL (video, image, pdf, audio) - same for all variants, empty if none
   final TemplateVariant variantA;
   final TemplateVariant variantB;
   final TemplateVariant variantC;
@@ -293,6 +295,8 @@ class TemplateExercise {
     required this.id,
     required this.title,
     required this.description,
+    required this.instrument,
+    this.mediaUrl = '',
     required this.variantA,
     required this.variantB,
     required this.variantC,
@@ -305,6 +309,8 @@ class TemplateExercise {
       id: doc.id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
+      instrument: data['instrument'] ?? 'Guitar',
+      mediaUrl: data['mediaUrl'] as String? ?? '',
       variantA: TemplateVariant.fromMap(data['variantA'] ?? {}),
       variantB: TemplateVariant.fromMap(data['variantB'] ?? {}),
       variantC: TemplateVariant.fromMap(data['variantC'] ?? {}),
@@ -317,6 +323,8 @@ class TemplateExercise {
   Map<String, dynamic> toFirestore() => {
         'title': title,
         'description': description,
+        'instrument': instrument,
+        'mediaUrl': mediaUrl,
         'variantA': variantA.toMap(),
         'variantB': variantB.toMap(),
         'variantC': variantC.toMap(),

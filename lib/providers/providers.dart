@@ -116,6 +116,12 @@ final studentProgressProvider =
 // ============================================================================
 // Template Exercise Providers
 // ============================================================================
-final templateExercisesProvider = StreamProvider<List<TemplateExercise>>((ref) {
-  return ref.watch(firebaseServiceProvider).templateExercisesStream();
+final templateExercisesProvider =
+    StreamProvider.family<List<TemplateExercise>, String>((ref, instrument) {
+  return ref.watch(firebaseServiceProvider).templateExercisesStream(instrument);
+});
+
+final templateExerciseProvider =
+    FutureProvider.family<TemplateExercise?, String>((ref, templateId) {
+  return ref.watch(firebaseServiceProvider).getTemplateExercise(templateId);
 });

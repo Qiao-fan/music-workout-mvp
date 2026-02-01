@@ -275,6 +275,66 @@ class _PlanEditorScreenState extends ConsumerState<PlanEditorScreen> {
   }
 }
 
+Future<void> _duplicateSession(
+  BuildContext context,
+  WidgetRef ref,
+  String planId,
+  Session original,
+  int nextOrderIndex,
+) async {
+  try {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Duplicating session...')),
+    );
+
+    final firebaseService = ref.read(firebaseServiceProvider);
+    final exercises = await firebaseService.getExercises(planId, original.id);
+
+    // Create new session
+    final newSession = Session(
+      id: '',
+      planId: planId,
+      title: 'Duplicate of ${original.title}',
+      orderIndex: nextOrderIndex,
+      estMinutes: original.estMinutes,
+    );
+    final newSessionId = await firebaseService.createSession(planId, newSession);
+
+    // Copy all exercises to the new session
+    for (var i = 0; i < exercises.length; i++) {
+      final ex = exercises[i];
+      final newExercise = Exercise(
+        id: '',
+        sessionId: newSessionId,
+        title: ex.title,
+        instructions: ex.instructions,
+        orderIndex: i,
+        targetBpm: ex.targetBpm,
+        targetSeconds: ex.targetSeconds,
+        attachmentUrls: List.from(ex.attachmentUrls),
+      );
+      await firebaseService.createExercise(planId, newSessionId, newExercise);
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Duplicated "${original.title}" with ${exercises.length} exercise(s)',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error duplicating: $e')),
+      );
+    }
+  }
+}
+
 class _SessionsSection extends ConsumerWidget {
   final String planId;
 
@@ -349,7 +409,23 @@ class _SessionsSection extends ConsumerWidget {
                     ),
                     title: Text(session.title),
                     subtitle: Text('${session.estMinutes} minutes'),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.copy),
+                          onPressed: () => _duplicateSession(
+                            context,
+                            ref,
+                            planId,
+                            session,
+                            sessions.length,
+                          ),
+                          tooltip: 'Duplicate session',
+                        ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
                     onTap: () => context.push(
                       '/teacher/plan/$planId/session/${session.id}',
                     ),

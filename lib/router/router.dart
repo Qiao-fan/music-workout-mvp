@@ -11,6 +11,7 @@ import '../screens/teacher/session_editor_screen.dart';
 import '../screens/teacher/exercise_editor_screen.dart';
 import '../screens/teacher/assign_screen.dart';
 import '../screens/teacher/progress_screen.dart';
+import '../screens/teacher/template_editor_screen.dart';
 import '../screens/student/student_home_screen.dart';
 import '../screens/student/plan_detail_screen.dart';
 import '../screens/student/session_player_screen.dart';
@@ -169,6 +170,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             sessionId: sessionId,
             exerciseId: exerciseId,
           );
+        },
+      ),
+      GoRoute(
+        path: '/teacher/plan/:planId/template/new',
+        builder: (context, state) {
+          final planId = state.pathParameters['planId']!;
+          return TemplateEditorScreen(planId: planId);
+        },
+      ),
+      GoRoute(
+        path: '/teacher/plan/:planId/template/:templateId',
+        builder: (context, state) {
+          final planId = state.pathParameters['planId']!;
+          final templateId = state.pathParameters['templateId']!;
+          return TemplateEditorScreen(planId: planId, templateId: templateId);
         },
       ),
       GoRoute(
